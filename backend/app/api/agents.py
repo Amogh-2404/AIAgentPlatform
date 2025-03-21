@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Query, Depends, Request
+from fastapi import APIRouter, HTTPException, Query, Depends, Request, Body
+from pydantic import BaseModel
 from app.services.ai_agent_service import get_all_agents, run_agent
 from celery.result import AsyncResult
 from app.core.security import get_current_user
@@ -9,20 +10,21 @@ from app.db.models import Conversation
 
 router = APIRouter()
 
-@router.get("/")
-def list_agents():
-    return {"agents": get_all_agents()}
+class AgentPayload(BaseModel):
+    input: str = None
+    text: str = None
 
 @router.post("/{agent_id}/run")
 def run_agent_endpoint(
     agent_id: str,
-    payload: dict,
     request: Request,
+    payload: AgentPayload = Body(...),
     current_user: User = Depends(get_current_user),
     _: None = Depends(check_rate_limit)
 ):
-    task_info = run_agent(agent_id, payload, user_id=current_user.id)
+    task_info = run_agent(agent_id, payload.dict(), user_id=current_user.id)
     return {"message": "Task submitted", "task_id": task_info["task_id"]}
+
 
 @router.get("/task_status/")
 def get_task_status(task_id: str = Query(..., description="Celery task ID")):
